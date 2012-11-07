@@ -1,4 +1,7 @@
+# Python
+*.pyc
+
+# Django
 *.log
 *.pot
-*.pyc
-local_settings.py
+src/*/settings/local.py
