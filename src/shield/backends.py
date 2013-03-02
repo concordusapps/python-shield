@@ -37,13 +37,13 @@ class Backend(object):
     def manager_for_perm(self, manager, perm, user):
         if user and not user.is_anonymous() and not user.is_active:
             # inactive and anonymous users never have permissions
-            return False
+            return manager.none()
 
         # retrieve the rule
         rule = registry.get((perm, manager.model))
         if rule is None:
             # No rule; no permission
-            return False
+            return manager.none()
 
         # execute and retrieve users
         return manager.filter(rule(user))
@@ -51,7 +51,7 @@ class Backend(object):
     def manager_for_perms(self, manager, perms, user):
         if user and not user.is_anonymous() and not user.is_active:
             # inactive and anonymous users never have permissions
-            return False
+            return manager.none()
 
         # retrieve the rules and build the qset
         expression = None
@@ -59,7 +59,7 @@ class Backend(object):
             rule = registry.get((perm, manager.model))
             if rule is None:
                 # No rule; no permission
-                return False
+                return manager.none()
 
             # Apply rule
             q = rule(user)

@@ -1,4 +1,5 @@
 from django.db.models import manager
+from django.db.models.query import QuerySet
 from django.contrib import auth
 
 
@@ -21,3 +22,5 @@ def for_perms(self, perms, user):
 # Massive hacks beware
 setattr(manager.Manager, 'for_perm', for_perm)
 setattr(manager.Manager, 'for_perms', for_perms)
+setattr(QuerySet, 'for_perm', for_perm)
+setattr(QuerySet, 'for_perms', for_perms)
