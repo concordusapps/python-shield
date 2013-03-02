@@ -6,7 +6,7 @@ from __future__ import absolute_import, division
 from .rules import registry
 
 
-class Backend(object):
+class ShieldBackend(object):
     supports_object_permissions = True
     supports_anonymous_user = True
     supports_inactive_user = True
