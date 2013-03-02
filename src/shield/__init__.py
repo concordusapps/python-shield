@@ -8,24 +8,25 @@ from .rules import registry
 
 class _wrapper:
 
-    def __init__(self, permission, function):
+    def __init__(self, permissions, function):
         self.function = function
-        self.permission = permission
+        self.permissions = permissions
 
 
 class rule:
 
-    def __init__(self, permission):
-        self.permission = permission
+    def __init__(self, *permissions):
+        self.permissions = permissions
 
     def __call__(self, function):
-        return _wrapper(self.permission, function)
+        return _wrapper(self.permissions, function)
 
 
 def rules(cls):
     for name, member in inspect.getmembers(cls):
         if isinstance(member, _wrapper):
-            registry[(member.permission, cls)] = functools.partial(
-                member.function, cls)
+            method = functools.partial(member.function, cls)
+            for permission in member.permissions:
+                registry[(permission, cls)] = method
 
     return cls
