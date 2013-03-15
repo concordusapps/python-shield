@@ -15,6 +15,7 @@ setup(
     package_dir={'shield': 'src/shield'},
     packages=find_packages('src'),
     install_requires=[
-        'django >= 1.5'
+        'django >= 1.5',
+        'django-predicate'
     ],
 )

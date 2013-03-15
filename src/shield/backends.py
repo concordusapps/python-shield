@@ -30,9 +30,8 @@ class ShieldBackend(object):
             # No rule; no permission
             return False
 
-        # execute and check for existance
-        qset = obj.__class__.objects.filter(rule(user)).filter(pk=obj.pk)
-        return qset.exists()
+        # execute the rule and evaluate against the object
+        return rule(user).eval(obj)
 
     def has_perms(self, user, perm_list, obj=None):
         if obj is None:
@@ -44,7 +43,7 @@ class ShieldBackend(object):
             return False
 
         # Iterate through permissions
-        objects = obj.__class__.objects
+        result = True
         for perm in perm_list:
             # retrieve the rule
             rule = registry.get((perm, obj.__class__))
@@ -53,10 +52,10 @@ class ShieldBackend(object):
                 return False
 
             # execute and check for existance
-            objects = objects.filter(rule(user)).filter(pk=obj.pk)
+            result = result and rule(user).eval(obj)
 
-        # Check for existance
-        return objects.exists()
+        # Return result
+        return result
 
     def objects_for_perm(self, manager, perm, user):
         if user and not user.is_anonymous() and not user.is_active:

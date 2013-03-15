@@ -4,6 +4,7 @@ from __future__ import absolute_import, division
 import functools
 import inspect
 from .rules import registry
+from predicate import P as Q
 
 
 class _wrapper:
@@ -11,6 +12,9 @@ class _wrapper:
     def __init__(self, permissions, function):
         self.function = function
         self.permissions = permissions
+
+    def __call__(self, *args, **kwargs):
+        return self.function(*args, **kwargs)
 
 
 class rule:
