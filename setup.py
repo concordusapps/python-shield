@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-shield',
-    version='0.3.0',
+    version='0.4.0',
     description='An object-level permissions backend for django using expressive rules.',
     license='MIT',
     author='Concordus Applications',
