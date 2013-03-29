@@ -84,7 +84,7 @@ class ShieldBackend(object):
             return manager.none()
 
         # execute and retrieve users
-        return manager.filter(rule(user, obj))
+        return manager.filter(rule(user, None))
 
     def objects_for_perms(self, manager, perms, user):
         if user and not user.is_anonymous() and not user.is_active:
@@ -100,7 +100,7 @@ class ShieldBackend(object):
                 return manager.none()
 
             # Apply rule
-            objects = objects.filter(rule(user, obj))
+            objects = objects.filter(rule(user, None))
 
         # execute and retrieve users
         return objects
