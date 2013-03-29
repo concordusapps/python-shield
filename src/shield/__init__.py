@@ -4,7 +4,6 @@ from __future__ import absolute_import, division
 import functools
 import inspect
 from .rules import registry
-from predicate import P as Q
 
 
 class _wrapper:
