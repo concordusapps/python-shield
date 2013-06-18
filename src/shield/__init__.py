@@ -5,7 +5,16 @@ from . import registry
 
 
 class rule:
-    """Add the decorated rule to our registry"""
+    """Add the decorated rule to our registry.  The rule function's signature
+    should look like this:
+
+    foo(query, owner, target)
+
+    where query is the sqlalchemy query object, owner is an instance of the
+    owner permission, and target is an instance of the targeted object.
+    The function should return either a query object with permission
+    information added to it.
+    """
 
     def __init__(self, *perms, **kwargs):
         """owner: The owner of the permissions.
