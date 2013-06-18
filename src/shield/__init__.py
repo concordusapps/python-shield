@@ -1,44 +1,18 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from __future__ import absolute_import, division
-import functools
 import inspect
-from . import rules
-
-
-# class _wrapper:
-
-#     def __init__(self, permissions, function):
-#         self.function = function
-#         self.permissions = permissions
-
-#     def __call__(self, *args, **kwargs):
-#         return self.function(*args, **kwargs)
-
-
-# class rule:
-
-#     def __init__(self, *permissions):
-#         self.permissions = permissions
-
-#     def __call__(self, function):
-#         return _wrapper(self.permissions, function)
-
-
-# def rules(cls):
-#     for name, member in inspect.getmembers(cls):
-#         if isinstance(member, _wrapper):
-#             method = functools.partial(member.function, cls)
-#             for permission in member.permissions:
-#                 registry[(permission, cls)] = method
-
-#     return cls
+from . import registry
 
 
 class _method_wrapper(object):
+    """A placeholder object used to wrap methods until the rules decorator
+    comes around and adds everything to the shield registry."""
 
-    def __init__(self, permissions, fn):
+    def __init__(self, fn, permissions, owner, target):
         self.permissions = permissions
+        self.owner = owner
+        self.target = target
         self.fn = fn
 
     def __call__(self, *args, **kwargs):
@@ -57,20 +31,23 @@ class rule:
         self.target = target
 
     def __call__(self, fn):
-        return _method_wrapper(self.permissions, fn)
+        return _method_wrapper(fn, self.permissions, self.owner, self.target)
 
 
 def rules(cls):
+    """Add all permission methods on the decorated object to our registry."""
+    # This is called after the class object is instantiated and all methods are
+    # wrapped with the decorator.  Iterate over all of our personal wrapped
+    # methods, unwrap them, and add them to the registry.
 
-    mems = inspect.getmembers(cls, lamdbda x: isinstance(x, _method_wrapper))
+    mems = inspect.getmembers(cls, lambda x: isinstance(x, _method_wrapper))
+
     for name, member in mems:
+        # Unwrap each method
+        # Add the member to the registry
+        for perm in member.permissions:
+            registry.registry[(member.owner, perm, member.target)] = member.fn
 
-        # We can't add bound methods to our registry, so create partials
-        # that emulate bound methods
-        method = functools.partial(member.function, cls)
-
-        # Depending on the target, add to the single or dual
-        for permission in member.permissions:
-
-            # Add the permission to the registry
-            owner = registry.get(cls)
+        # Now that the method has been added to the registry, unwrap the method
+        # since we don't need the wrapper anymore.
+        setattr(cls, name, member.fn)
