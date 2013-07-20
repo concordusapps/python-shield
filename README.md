@@ -1,4 +1,8 @@
 # shield
+[![Build Status](https://travis-ci.org/concordusapps/python-shield.png?branch=master)](https://travis-ci.org/concordusapps/python-shield)
+[![Coverage Status](https://coveralls.io/repos/concordusapps/python-shield/badge.png?branch=master)](https://coveralls.io/r/concordusapps/python-shield?branch=master)
+[![PyPi Version](https://pypip.in/v/shield/badge.png)](https://pypi.python.org/pypi/scim)
+![PyPi Downloads](https://pypip.in/d/shield/badge.png)
 > A permissions framework built around declarative rules.
 
 ## Usage
