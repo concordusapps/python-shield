@@ -1,5 +1,11 @@
+# Dot files
+.*
+!.git*
+!.travis*
+
 # Python
+/build
+/dist
 *.pyc
-build
-dist
+*.pyo
 *.egg-info
