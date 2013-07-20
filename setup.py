@@ -9,7 +9,7 @@ BASE_DIR = path.abspath(path.dirname(__file__))
 
 # Navigate, import, and retrieve the version of the project.
 VERSION = get_importer(path.join(BASE_DIR, 'src', 'shield')).find_module(
-    'meta').load_module().version
+    'meta').load_module('meta').version
 
 setup(
     name='shield',
