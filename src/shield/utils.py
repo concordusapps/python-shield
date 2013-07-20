@@ -68,7 +68,7 @@ def filter(*permissions, **kwargs):
     else:
         target_cls = target if isinstance(target, type) else target.__class__
         key = lambda x: (bearer_cls, target_cls, x)
-        check = lambda x: store[key(x)](target_cls, bearer_cls)
+        check = lambda x: store[key(x)](target_cls, bearer)
 
     try:
         # Attempt to build clause.
