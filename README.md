@@ -5,7 +5,7 @@
 ![PyPi Downloads](https://pypip.in/d/shield/badge.png)
 > A permissions framework built around declarative rules that is ORM-agnostic.
 
-**Shield** faciltiates the creation of functional rules that define permissions on a *bearer* object optionally in relation to a *target* object. **Sheild** should work in most ORMs and has a test suite for usage in *django* and *sqlalchemy*.
+**Shield** faciltiates the creation of functional rules that define permissions on a *bearer* object optionally in relation to a *target* object. **Shield** should work in most ORMs and has a test suite for usage in django and sqlalchemy.
 
 ## Usage
 
