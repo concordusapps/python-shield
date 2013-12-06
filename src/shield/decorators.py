@@ -20,6 +20,9 @@ class Rule(object):
         for permission in self.permissions:
             registry.expression[self.bearer, self.target, permission] = func
 
+        # Return the function.
+        return func
+
 
 class rule(object):
 
