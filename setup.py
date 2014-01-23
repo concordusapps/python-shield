@@ -1,19 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from setuptools import setup, find_packages
-from pkgutil import get_importer
-from os import path
+from setuptools import setup
+from imp import load_source
 
-# Calculate the base directory of the project.
-BASE_DIR = path.abspath(path.dirname(__file__))
-
-# Navigate, import, and retrieve the version of the project.
-VERSION = get_importer(path.join(BASE_DIR, 'src', 'shield')).find_module(
-    'meta').load_module('meta').version
 
 setup(
     name='shield',
-    version=VERSION,
+    version=load_source('', 'shield/_version.py').__version__,
     description='A permissions framework built around declarative rules.',
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -27,8 +20,7 @@ setup(
     author='Concordus Applications',
     author_email='support@concordusapps.com',
     url='http://github.com/concordusapps/python-shield',
-    package_dir={'shield': 'src/shield'},
-    packages=find_packages(path.join(BASE_DIR, 'src')),
+    packages=['shield'],
     install_requires=(
         # Normalization between python 2.x and 3.x
         'six'
