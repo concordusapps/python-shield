@@ -47,4 +47,4 @@ class ExpressionRegistry(dict):
         return registry[key]
 
 
-expression = {}
+expression = ExpressionRegistry()
