@@ -2,7 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import operator
 from six.moves import map, reduce
-from . import registry
+from ._registry import registry, expression
 
 
 def register(function, *permissions, **kwargs):
@@ -22,10 +22,13 @@ def register(function, *permissions, **kwargs):
         permissions for (optional).
     """
     target, bearer = kwargs.get('target'), kwargs['bearer']
-    for permission in permissions:
-        key = bearer, target, permission
-        registry.rule[key] = function
-        registry.expression[key] = function
+    if permissions and not permissions[0] is None:
+        for permission in permissions:
+            key = bearer, target, permission
+            registry[key] = function
+
+    else:
+        registry[bearer, target] = function
 
 
 def has(*permissions, **kwargs):
@@ -35,14 +38,13 @@ def has(*permissions, **kwargs):
     """
     target, bearer = kwargs.get('target'), kwargs['bearer']
     bearer_cls = bearer.__class__
-    store = registry.rule
 
     if target is None:
-        check = lambda p: store[bearer_cls, None, p](bearer)
+        check = lambda p: registry[bearer_cls, None, p](target, bearer)
 
     else:
         target_cls = target.__class__
-        check = lambda p: store[bearer_cls, target_cls, p](target, bearer)
+        check = lambda p: registry[bearer_cls, target_cls, p](target, bearer)
 
     try:
         # Attempt to check rules.
@@ -59,16 +61,15 @@ def filter(*permissions, **kwargs):
     berarer or target.
     """
     target, bearer = kwargs.get('target'), kwargs['bearer']
-    store = registry.expression
     bearer_cls = bearer.__class__ if not isinstance(bearer, type) else bearer
 
     if target is None:
-        check = lambda p: store[bearer_cls, None, p](bearer_cls)
+        check = lambda p: expression[bearer_cls, None, p](target, bearer_cls)
 
     else:
         target_cls = target if isinstance(target, type) else target.__class__
-        key = lambda x: (bearer_cls, target_cls, x)
-        check = lambda x: store[key(x)](target_cls, bearer)
+        check = lambda x: expression[bearer_cls, target_cls, x](
+            target, bearer)
 
     try:
         # Attempt to build clause.

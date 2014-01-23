@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
-from setuptools import setup
+from setuptools import setup, find_packages
 from imp import load_source
 
 
@@ -20,7 +20,7 @@ setup(
     author='Concordus Applications',
     author_email='support@concordusapps.com',
     url='http://github.com/concordusapps/python-shield',
-    packages=['shield'],
+    packages=find_packages('.'),
     install_requires=(
         # Normalization between python 2.x and 3.x
         'six'

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
 from .utils import register
-from . import registry
+from ._registry import registry, expression
+from functools import reduce
+import operator
 
 
 class Rule(object):
@@ -16,9 +18,9 @@ class Rule(object):
         return self.function(*args, **kwargs)
 
     def expression(self, func):
-        # Registers an specific expression for this rule object.
+        # Registers a specific expression for this rule object.
         for permission in self.permissions:
-            registry.expression[self.bearer, self.target, permission] = func
+            expression[self.bearer, self.target, permission] = func
 
         # Return the function.
         return func
@@ -47,3 +49,43 @@ class rule(object):
 
         # Return a wrapped rule function.
         return Rule(function, self.permissions, self.bearer, self.target)
+
+
+def deferred_rule_for(permission, attributes, bearer, target=None):
+    from .predicate import Predicate
+
+    @rule(permission, bearer=bearer, target=target)
+    def method(target_, bearer_):
+        q = []
+        for attribute in attributes:
+
+            # Resolve the class on the remote side.
+            if isinstance(target_, type):
+                attr = getattr(target_, attribute)
+            else:
+                attr = getattr(target_.__class__, attribute)
+
+            cls = attr.property.mapper.class_
+
+            # Find the rule for that class.
+            if permission:
+                key = (bearer, cls, permission)
+            else:
+                key = (bearer, cls)
+
+            defer = registry[key]
+
+            # Append the predicate for it.
+            q.append(defer(Predicate(target_, attribute), bearer_))
+
+        return reduce(operator.and_, q)
+
+
+def deferred_rule(*permissions, **kwargs):
+    kwargs.setdefault('target', None)
+    if permissions:
+        for permission in permissions:
+            deferred_rule_for(permission, **kwargs)
+
+    else:
+        deferred_rule_for(None, **kwargs)
