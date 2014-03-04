@@ -13,10 +13,6 @@ def evaluate_expression(expression, target=None):
     lhs = evaluate(expression.lhs, target)
     rhs = evaluate(expression.rhs, target)
 
-    # Is one of these nop'd ?
-    if lhs is True or rhs is True:
-        return True
-
     if expression.operator == operator.contains:
 
         if hasattr(lhs, 'class_'):
