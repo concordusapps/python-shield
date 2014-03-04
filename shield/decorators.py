@@ -54,7 +54,16 @@ class rule(object):
 def deferred_rule_for(permission, attributes, bearer, target=None):
     from .predicate import Predicate
 
-    @rule(permission, bearer=bearer, target=target)
+    args = {'bearer': bearer, 'target': target}
+
+    # Change how we decorate the child method depending on the type of
+    # permission being registered.
+    if permission is None:
+        decorator = rule(**args)
+    else:
+        decorator = rule(permission, **args)
+
+    @decorator
     def method(target_, bearer_):
         q = []
         for attribute in attributes:
