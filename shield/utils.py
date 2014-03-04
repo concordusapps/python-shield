@@ -2,7 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import operator
 from six.moves import map, reduce
-from ._registry import registry, expression
+from ._registry import registry, target_registry, bearer_registry, expression
 
 
 def register(function, *permissions, **kwargs):
@@ -21,14 +21,20 @@ def register(function, *permissions, **kwargs):
         The entity that the bearer is being granted the
         permissions for (optional).
     """
-    target, bearer = kwargs.get('target'), kwargs['bearer']
-    if permissions and not permissions[0] is None:
-        for permission in permissions:
-            key = bearer, target, permission
-            registry[key] = function
 
+    # Generic USER HAS ALL PERMISSIONS ON TARGET type permision
+    if not len(permissions):
+        target_registry[kwargs['bearer'], kwargs['target']] = function
+
+    # Generic USER CAN X permission.
+    elif not 'target' in kwargs:
+        for perm in permissions:
+            bearer_registry[kwargs['bearer'], perm] = function
+
+    # Specific USER CAN X ON TARGET permission.
     else:
-        registry[bearer, target] = function
+        for perm in permissions:
+            registry[kwargs['bearer'], kwargs['target'], perm] = function
 
 
 def has(*permissions, **kwargs):
