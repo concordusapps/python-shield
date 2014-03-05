@@ -7,7 +7,7 @@ from shield.contrib.sqlalchemy import evaluate
 from . import sqlalchemy as models
 
 
-class BaseTest:
+class BaseTest(object):
 
     @pytest.fixture(autouse=True, scope='function')
     def database(self, request):
