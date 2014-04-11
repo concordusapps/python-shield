@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
 from shield.predicate import Predicate, BinaryExpression, UnaryExpression
+from sqlalchemy.orm.attributes import QueryableAttribute
 import six
 import operator
 from collections import defaultdict
@@ -13,24 +14,40 @@ def evaluate_expression(expression, target=None):
     lhs = evaluate(expression.lhs, target)
     rhs = evaluate(expression.rhs, target)
 
+    # Expand the operands.
+    base = None
+    attribute = lhs
+    if isinstance(lhs, tuple):
+        base, attribute = lhs
+
     if expression.operator == operator.contains:
 
-        if hasattr(lhs, 'class_'):
+        if hasattr(attribute, 'class_'):
             # We are actually an instrumented attribute.
 
             # Get the referenced foriegn key and create the in clause on it.
-            q = lhs.expression.right
-            items = list(chain(*rhs.values(lhs.expression.left)))
+            q = attribute.expression.right
+            items = list(chain(*rhs.values(attribute.expression.left)))
             if not items:
                 return False
 
-            return q.in_(items)
+            result = q.in_(items)
+
+            if base:
+                return base.has(result)
+
+            return result
 
         else:
             # We're just a target; flip and continue.
-            rhs, lhs = lhs, rhs
+            rhs, attribute = attribute, rhs
 
-    return expression.operator(lhs, rhs)
+    result = expression.operator(attribute, rhs)
+
+    if base:
+        return base.has(result)
+
+    return result
 
 
 def evaluate_unary(predicate, target):
@@ -54,7 +71,12 @@ def evaluate(predicate, target=None):
             if isinstance(base, Predicate):
                 base = evaluate(base, target)
 
-            obj = getattr(base, predicate.attribute)
+            if isinstance(base, QueryableAttribute):
+                return base, getattr(
+                    base.property.mapper.class_, predicate.attribute)
+
+            else:
+                obj = getattr(base, predicate.attribute)
 
         except AttributeError:
             # Nop out the predicate; we don't have an attribute.
