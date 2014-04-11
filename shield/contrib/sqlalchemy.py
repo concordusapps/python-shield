@@ -64,23 +64,18 @@ def evaluate(predicate, target=None):
 
     elif isinstance(predicate, Predicate):
 
-        try:
-            # Resolve the base of reference (either the constant or the
-            # passed one).
-            base = predicate.base or target
-            if isinstance(base, Predicate):
-                base = evaluate(base, target)
+        # Resolve the base of reference (either the constant or the
+        # passed one).
+        base = predicate.base or target
+        if isinstance(base, Predicate):
+            base = evaluate(base, target)
 
-            if isinstance(base, QueryableAttribute):
-                return base, getattr(
-                    base.property.mapper.class_, predicate.attribute)
+        if isinstance(base, QueryableAttribute):
+            return getattr(
+                base.property.mapper.class_, predicate.attribute)
 
-            else:
-                obj = getattr(base, predicate.attribute)
-
-        except AttributeError:
-            # Nop out the predicate; we don't have an attribute.
-            return True
+        else:
+            obj = getattr(base, predicate.attribute)
 
         # Collect the arguments in a map from the table to the key and value.
         arguments_map = defaultdict(dict)
