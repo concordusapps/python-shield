@@ -57,30 +57,27 @@ def deferred_rule_for(permission, attributes, bearer, target=None):
     args = {'bearer': bearer, 'target': target}
 
     # Change how we decorate the child method depending on the type of
-    # permission being registered.
+    # permission being registered.  Additionally, change the kind of key
+    # we're generating to look up the keys in shield's registry.
     if permission is None:
         decorator = rule(**args)
+        maker = lambda x: (bearer, x)
     else:
         decorator = rule(permission, **args)
+        maker = lambda x: (bearer, x, permission)
+
+    # look up the remote side of the attributes (not the sqlalchemy queryable,
+    # but the object it represents.)
+    # TODO: make this unspecific for sqlalchemy.
+    attrs = [getattr(target, x).property.mapper.class_ for x in attributes]
+
+    # Create a cache of the lookup keys.
+    keys = [maker(x) for x in attrs]
 
     @decorator
     def method(target_, bearer_):
         q = []
-        for attribute in attributes:
-
-            # Resolve the class on the remote side.
-            if isinstance(target_, type):
-                attr = getattr(target_, attribute)
-            else:
-                attr = getattr(target_.__class__, attribute)
-
-            cls = attr.property.mapper.class_
-
-            # Find the rule for that class.
-            if permission:
-                key = (bearer, cls, permission)
-            else:
-                key = (bearer, cls)
+        for key, attribute in zip(keys, attributes):
 
             defer = registry[key]
 
