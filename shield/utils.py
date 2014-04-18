@@ -6,10 +6,6 @@ from ._registry import registry
 import functools
 
 
-def class_for(obj):
-    return obj if isinstance(obj, type) else obj.__class__
-
-
 def filter_qset(*permissions, **kwargs):
     """
     Constructs a clause to filter all bearers or targets for a given
@@ -18,7 +14,9 @@ def filter_qset(*permissions, **kwargs):
     bearer = kwargs['bearer']
     target = kwargs.get('target')
 
-    getter = functools.partial(registry.retrieve, class_for(bearer), target)
+    bearer_cls = bearer if isinstance(bearer, type) else bearer.__class__
+
+    getter = functools.partial(registry.retrieve, bearer_cls, target)
 
     try:
         if len(permissions):

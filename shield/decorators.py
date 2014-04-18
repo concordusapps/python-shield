@@ -5,25 +5,80 @@ from functools import reduce
 import operator
 
 
+class Rule(object):
+    """Rule entry object (sits in the registry).  Invokes rule when invoked,
+    and returns the rule."""
+
+    def __init__(self, function, permission, bearer, target, cache=True):
+        self.function = function
+        self.cache = cache
+        self.bearer = bearer
+        self.target = target
+        self.permission = permission
+
+    def __call__(self, query, bearer):
+        args = {
+            'query': query,
+            'bearer': bearer,
+            'target': self.target,
+        }
+        return self.function(**args)
+
+
+class DeferredRule(Rule):
+    """Deferred type registry rule"""
+
+    def __init__(self, *args, **kwargs):
+        self.attributes = kwargs['attributes']
+        super().__init__(*args, **kwargs)
+
+    @property
+    def attr_map(self):
+        # This is the cached attribute map.
+        if not hasattr(self, '_attr_map'):
+            class_for = lambda x: getattr(self.bearer).property.mapper.class_
+            self._attr_map = {x: class_for(x) for x in self.attributes}
+        return self._attr_map
+
+    def __call__(self, query, bearer):
+        rules = []
+        for name, class_ in self.attr_map:
+            rule = registry.retrieve(
+                bearer=self.bearer,
+                target=class_,
+                permission=self.permission)
+            rule.append(rules)
+
+        # Invoke all the rules.
+        return reduce(operator.and_, map(lambda x: x(query, bearer), rules))
+
+
 class rule(object):
+    """Rule registration object."""
+
+    _rule_class = Rule
 
     def __init__(self, *permissions, **kwargs):
-        #! The positional arguments is the set of permissions to
-        #! be registered from this declarative rule.
+        # The positional arguments is the set of permissions to
+        # be registered from this declarative rule.
         self.permissions = permissions
 
-        #! Bearer is the entity in which the permissions are being
-        #! granted to.
+        # Bearer is the entity in which the permissions are being
+        # granted to.
         self.bearer = kwargs['bearer']
 
-        #! Target is an optional parameter that causes the rule
-        #! to be specifically applied to the target Entity.
+        # Target is an optional parameter that causes the rule
+        # to be specifically applied to the target Entity.
         self.target = kwargs.get('target')
+
+        # Set this to true if you discover that the cache is growing enormous
+        # due to too many combinations of a specific rule being cached.
+        self.cache = kwargs.get('cache', True)
 
     def __call__(self, function):
         # Register the passed function as a rule for each permission.
         registry.register(
-            function,
+            self,
             *self.permissions,
             bearer=self.bearer,
             target=self.target)
@@ -31,47 +86,11 @@ class rule(object):
         return function
 
 
-def deferred_rule_for(permission, attributes, bearer, target=None):
-    from .predicate import Predicate
+class deferred_rule(rule):
 
-    args = {'bearer': bearer, 'target': target}
+    _rule_class = DeferredRule
 
-    # Change how we decorate the child method depending on the type of
-    # permission being registered.  Additionally, change the kind of key
-    # we're generating to look up the keys in shield's registry.
-    if permission is None:
-        decorator = rule(**args)
-        maker = lambda x: (bearer, x)
-    else:
-        decorator = rule(permission, **args)
-        maker = lambda x: (bearer, x, permission)
-
-    # look up the remote side of the attributes (not the sqlalchemy queryable,
-    # but the object it represents.)
-    # TODO: make this unspecific for sqlalchemy.
-    attrs = [getattr(target, x).property.mapper.class_ for x in attributes]
-
-    # Create a cache of the lookup keys.
-    keys = [maker(x) for x in attrs]
-
-    @decorator
-    def method(target_, bearer_):
-        q = []
-        for key, attribute in zip(keys, attributes):
-
-            defer = registry[key]
-
-            # Append the predicate for it.
-            q.append(defer(Predicate(target_, attribute), bearer_))
-
-        return reduce(operator.and_, q)
-
-
-def deferred_rule(*permissions, **kwargs):
-    kwargs.setdefault('target', None)
-    if permissions:
-        for permission in permissions:
-            deferred_rule_for(permission, **kwargs)
-
-    else:
-        deferred_rule_for(None, **kwargs)
+    def __init__(self, *args, **kwargs):
+        # A list of all the attributes that we should defer rule resolution
+        # for.
+        self.attributes = kwargs['attributes']
