@@ -6,7 +6,7 @@ from ._registry import registry
 import functools
 
 
-def filter_qset(*permissions, **kwargs):
+def filter_(*permissions, **kwargs):
     """
     Constructs a clause to filter all bearers or targets for a given
     berarer or target.
@@ -36,4 +36,5 @@ def has(*permissions, **kwargs):
     the passed target).
     """
 
-    return kwargs['bearer'] in filter_qset(*permissions, **kwargs)
+    # TODO: Predicate evaluation?
+    return kwargs['target'] in filter_(*permissions, **kwargs)

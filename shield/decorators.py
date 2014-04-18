@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
 from ._registry import registry
-from functools import reduce
+from six.moves import map, reduce
 import operator
 
 
@@ -20,13 +20,13 @@ class Rule(object):
         args = {
             'query': query,
             'bearer': bearer,
-            'target': self.target,
+            # 'target': self.target,
         }
         return self.function(**args)
 
 
 class DeferredRule(Rule):
-    """Deferred type registry rule"""
+    """Deferred type registry rule."""
 
     def __init__(self, *args, **kwargs):
         self.attributes = kwargs['attributes']
@@ -50,6 +50,7 @@ class DeferredRule(Rule):
             rule.append(rules)
 
         # Invoke all the rules.
+        # TODO: jointables here.
         return reduce(operator.and_, map(lambda x: x(query, bearer), rules))
 
 
@@ -77,11 +78,22 @@ class rule(object):
 
     def __call__(self, function):
         # Register the passed function as a rule for each permission.
-        registry.register(
-            self,
-            *self.permissions,
-            bearer=self.bearer,
-            target=self.target)
+
+        # Common arguments to the registration function.
+        args = {
+            'function': function,
+            'target': self.target,
+            'cache': self.cache,
+            'bearer': self.bearer,
+        }
+
+        # If no permissions were specified, then still register a generic
+        # permission.
+        if not len(self.permissions):
+            registry.register(self._rule_class(permission=None, **args))
+        else:
+            for perm in self.permissions:
+                registry.register(self._rule_class(permission=perm, **args))
 
         return function
 

@@ -38,9 +38,15 @@ class CachedRegistry(InheritableDict):
 
         super().__init__(0, 1)
 
+    def clear(self):
+        super().clear()
+        self.target.clear()
+        self.bearer.clear()
+
     def _maybe_cache(self, key, value):
-        # TODO: Figure out if we actually need to cache.
-        self[key] = value
+        # Specific rules can be flagged as not cached.
+        if value.cache:
+            self[key] = value
 
     def __missing__(self, key):
         # Assert the type of permission being checked and ferry it off
@@ -84,22 +90,19 @@ class CachedRegistry(InheritableDict):
 
         return lookup[key]
 
-    def register(self, function, *permissions, bearer=None, target=None):
+    # def register(self, function, *permissions, bearer=None, target=None):
+    def register(self, rule):
 
         # Python2 doesn't allow for mandatory kwargs :(
-        if bearer is None:
+        if rule.bearer is None:
             raise TypeError('bearer must be provided.')
 
-        if target is None and not len(permissions):
+        if rule.target is None and rule.permission is None:
             raise TypeError(
                 'Cannot register a rule without either a permission or a '
                 'target.')
 
-        if not len(permissions):
-            reg, key = self._lookup(bearer, target)
-            reg[key] = function
-        else:
-            for perm in permissions:
-                reg, key = self._lookup(bearer, target, perm)
+        reg, key = self._lookup(rule.bearer, rule.target, rule.permission)
+        reg[key] = rule
 
 registry = CachedRegistry()

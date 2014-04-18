@@ -17,6 +17,67 @@ class BaseTest(object):
         self.session = models.Session()
 
 
+class RuleTest(BaseTest):
+
+    @pytest.fixture(autouse=True, scope='function')
+    def register_rules(self, request):
+        request.addfinalizer(lambda: shield.registry.clear())
+
+
+class FixtureTest(BaseTest):
+    def setup(self):
+        super().setup()
+        # Add 6 users, 2 teams, and link the first 3 to 1 and the
+        # second 3 to 2.
+
+        self.users = users = []
+        for n in range(6):
+            users.append(models.User(name=str(n)))
+
+        self.session.add_all(users)
+        self.session.commit()
+
+        teams = []
+        for n in range(2):
+            teams.append(models.Team(name=str(n)))
+
+        self.session.add_all(teams)
+        self.session.commit()
+
+        links = []
+        for n in range(3):
+            links.append(models.Membership(team=teams[0], user=users[n],
+                                           is_active=True))
+
+        for n in range(3):
+            links.append(models.Membership(team=teams[1], user=users[n + 3],
+                                           is_active=False))
+
+        self.session.add_all(links)
+        self.session.commit()
+
+        # Create 10 boxes (5 for each team).
+        self.boxes = boxes = []
+        for n in range(5):
+            boxes.append(models.Box(team=teams[0]))
+
+        for n in range(5):
+            boxes.append(models.Box(team=teams[1]))
+
+        self.session.add_all(boxes)
+        self.session.commit()
+
+
+class TestRegistry(RuleTest, FixtureTest):
+
+    def test_register_normal_rule(self):
+
+        @shield.rule('member', bearer=models.User, target=models.Team)
+        def rule(query, bearer):
+            pass
+
+        assert len(shield.registry) == 1
+
 # class TestSimplePredicate(BaseTest):
 
 #     def setup(self):
