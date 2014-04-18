@@ -10,17 +10,28 @@ class InheritableDict(dict):
     indexes for the keys that need inheritance checked.
     """
     def __init__(self, *positions):
-        self.positions = positions
+        self.positions = set(positions)
 
     def __missing__(self, key):
+        # key = (<class1>, <class2>, <class3>)
+        for bkey in six.iterkeys(self):
+            # bkey = (<cls1>, <cls2>, <clss3>)
+            for index, item in enumerate(bkey):
+                # index = 0, item = <cls1>
+                if index in self.positions:
+                    # issubclass(<class1>, <cls1>)
+                    if not issubclass(key[index], item):
+                        break
 
-        for item in six.iterkeys(self):
-            for position in self.positions:
-                if not issubclass(key[position], item[position]):
-                    break
+                else:
+                    # <class1> == <cls1>
+                    if key[index] != item:
+                        break
             else:
+                # issubclass and == passed.
                 return self[item]
         else:
+            # issubclass and == did not pass for any entries.
             raise KeyError(key)
 
 
