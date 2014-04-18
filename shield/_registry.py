@@ -1,88 +1,105 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
-from six.moves import filter as ifilter
+# from six.moves import filter as ifilter
 import six
 
 
-class BearerRegistry(dict):
-    """Key is (<bearer>, <permission>)"""
+class InheritableDict(dict):
+    """A dictionary that tests inheritance of keys when one cannot be found.
+    Expects an iterable key format (like a tuple).  The constructor takes
+    indexes for the keys that need inheritance checked.
+    """
+    def __init__(self, *positions):
+        self.positions = positions
 
-
-bearer_registry = BearerRegistry()
-
-
-class TargetRegistry(dict):
     def __missing__(self, key):
-        """Keys is (<bearer>, <target>)"""
-        # Delegate to the bearer registry if this is a generic permission check
-        if len(key) < 2:
-            return bearer_registry[key]
 
-        bearer, target = key
-
-        # Iterate over keys where the bearer matches the bearer we were given.
-        for base_key in ifilter(lambda x: bearer == x[0], six.iterkeys(self)):
-            # Is target a subclass of a base target we have stored
-            if issubclass(target, base_key[1]):
-                rule = self[base_key]
-                break
+        for item in six.iterkeys(self):
+            for position in self.positions:
+                if not issubclass(key[position], item[position]):
+                    break
+            else:
+                return self[item]
         else:
             raise KeyError(key)
 
-        self[key] = rule
-        return rule
 
-
-target_registry = TargetRegistry()
-
-
-class PermissionRegistry(dict):
-    def __missing__(self, key):
-        """Key format is (<bearer>, <target>, <permission>)"""
-        # Delegate to the target registry if this is not an individual
-        # permission check
-        if len(key) < 3:
-            return target_registry[key]
-
-        bearer, target, permission = key
-
-        # This should probably be moved elsewhere
-        if target is None:
-            return bearer_registry[bearer, permission]
-
-        # We only want to iterate over items where the bearer and permission
-        # matches.
-        check_bearer = lambda x: bearer == x[0]
-        check_perm = lambda x: permission == x[2]
-        check = lambda x: all((check_bearer(x), check_perm(x)))
-
-        for base_key in ifilter(check, six.iterkeys(self)):
-            base_bearer, base_target, base_perm = base_key
-
-            # Inheritance check for the target.
-            if issubclass(target, base_target):
-                # Found a match!
-                rule = self[base_key]
-                break
-        else:
-            # No entry found, check the target registry.
-            rule = target_registry[bearer, target]
-
-        self[key] = rule
-        return rule
-
-
-registry = PermissionRegistry()
-
-
-class ExpressionRegistry(dict):
-    """An expression registry dictionary.
-
-    The key format is (<bearer>[, <target>][, <permission>])
+class CachedRegistry(InheritableDict):
+    """The key format is (<bearer>[, <target>][, <permission>])
     """
 
+    def __init__(self):
+
+        # key format: (bearer, target)
+        self.target = InheritableDict(0, 1)
+
+        # key format: (bearer, permission)
+        self.bearer = InheritableDict(1)
+
+        super().__init__(0, 1)
+
+    def _maybe_cache(self, key, value):
+        # TODO: Figure out if we actually need to cache.
+        self[key] = value
+
     def __missing__(self, key):
-        return registry[key]
+        # Assert the type of permission being checked and ferry it off
+        # elsewhere.
+        # This class only accepts explict permissions on an explicit target.
+        if len(key) != 3:
+            value = self._dispatch(key)
+        else:
+            value = super().__missing__(key)
 
+        self._maybe_cache(key, value)
+        return value
 
-expression = ExpressionRegistry()
+    def _lookup(self, bearer, target=None, permission=None):
+        """Lookup the proper registry for this permission.
+        Returns (<registry>, <key>) where registry is the proper lookup
+        and key is the generated key to use for the permission."""
+
+        if target is None and permission is None:
+            raise TypeError('Must specify either target or permission.')
+
+        if target is None:
+            key = (bearer, permission)
+            lookup = self.target
+
+        elif permission is None:
+            key = (bearer, target)
+            lookup = self.bearer
+
+        else:
+            key = (bearer, target, permission)
+            lookup = self
+
+        return lookup, key
+
+    def retrieve(self, *args, **kwargs):
+        """Retrieve the permsission function for the provided things.
+        """
+
+        lookup, key = self._lookup(*args, **kwargs)
+
+        return lookup[key]
+
+    def register(self, function, *permissions, bearer=None, target=None):
+
+        # Python2 doesn't allow for mandatory kwargs :(
+        if bearer is None:
+            raise TypeError('bearer must be provided.')
+
+        if target is None and not len(permissions):
+            raise TypeError(
+                'Cannot register a rule without either a permission or a '
+                'target.')
+
+        if not len(permissions):
+            reg, key = self._lookup(bearer, target)
+            reg[key] = function
+        else:
+            for perm in permissions:
+                reg, key = self._lookup(bearer, target, perm)
+
+registry = CachedRegistry()
