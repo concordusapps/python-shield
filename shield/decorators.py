@@ -8,7 +8,7 @@ import six
 
 class RuleBase(object):
 
-    def __init__(self, *ignored, permission, bearer, target, cache=True):
+    def __init__(self, permission, bearer, target, cache=True):
         self.permission = permission
         self.bearer = bearer
         self.target = target
@@ -21,7 +21,7 @@ class Rule(RuleBase):
 
     def __init__(self, *args, **kwargs):
         self.function = kwargs.pop('function')
-        super().__init__(*args, **kwargs)
+        super(Rule, self).__init__(*args, **kwargs)
 
     def __call__(self, query, bearer):
         args = {
@@ -37,7 +37,7 @@ class DeferredRule(RuleBase):
 
     def __init__(self, *args, **kwargs):
         self.attributes = kwargs.pop('attributes')
-        super().__init__(*args, **kwargs)
+        super(DeferredRule, self).__init__(*args, **kwargs)
 
     @property
     def attr_map(self):

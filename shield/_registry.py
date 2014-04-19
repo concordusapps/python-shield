@@ -47,7 +47,7 @@ class CachedDict(InheritableDict):
         # Assert the type of permission being checked and ferry it off
         # elsewhere.
         # This class only accepts explict permissions on an explicit target.
-        value = super().__missing__(key)
+        value = super(CachedDict, self).__missing__(key)
         self._maybe_cache(key, value)
         return value
 
@@ -64,10 +64,10 @@ class Registry(CachedDict):
         # key format: (bearer, permission)
         self.bearer = CachedDict(0)
 
-        super().__init__(0, 1)
+        super(Registry, self).__init__(0, 1)
 
     def clear(self):
-        super().clear()
+        super(Registry, self).clear()
         self.target.clear()
         self.bearer.clear()
 

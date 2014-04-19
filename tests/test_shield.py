@@ -26,7 +26,7 @@ class RuleTest(BaseTest):
 
 class FixtureTest(BaseTest):
     def setup(self):
-        super().setup()
+        super(FixtureTest, self).setup()
         # Add 6 users, 2 teams, and link the first 3 to 1 and the
         # second 3 to 2.
 
