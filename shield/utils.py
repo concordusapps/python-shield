@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals, division
 import operator
 from six.moves import map, reduce
 from ._registry import registry
+from sqlalchemy.orm import object_session
 import functools
 
 
@@ -16,7 +17,7 @@ def filter_(*permissions, **kwargs):
     berarer or target.
     """
     bearer = kwargs['bearer']
-    session = kwargs['session']
+    session = kwargs.get('session', object_session(bearer))
     target = kwargs.get('target')
 
     query = session.query(target)
