@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
-# from six.moves import filter as ifilter
 import six
 
 
@@ -10,7 +9,7 @@ class InheritableDict(dict):
     indexes for the keys that need inheritance checked.
     """
     def __init__(self, *positions):
-        self.positions = set(positions)
+        self.__positions = set(positions)
 
     def __missing__(self, key):
         # key = (<class1>, <class2>, <class3>)
@@ -18,7 +17,7 @@ class InheritableDict(dict):
             # bkey = (<cls1>, <cls2>, <clss3>)
             for index, item in enumerate(bkey):
                 # index = 0, item = <cls1>
-                if index in self.positions:
+                if index in self.__positions:
                     # issubclass(<class1>, <cls1>)
                     if not issubclass(key[index], item):
                         break
@@ -29,23 +28,41 @@ class InheritableDict(dict):
                         break
             else:
                 # issubclass and == passed.
-                return self[item]
+                return self[bkey]
         else:
             # issubclass and == did not pass for any entries.
             raise KeyError(key)
 
 
-class CachedRegistry(InheritableDict):
+class CachedDict(InheritableDict):
+
+    def _maybe_cache(self, key, value):
+        # Specific rules can be flagged as not cached.
+        # NOTE: Right now this expects the value to be a Rule type.
+        # Could be refactored somehow...
+        if value.cache:
+            self[key] = value
+
+    def __missing__(self, key):
+        # Assert the type of permission being checked and ferry it off
+        # elsewhere.
+        # This class only accepts explict permissions on an explicit target.
+        value = super().__missing__(key)
+        self._maybe_cache(key, value)
+        return value
+
+
+class Registry(CachedDict):
     """The key format is (<bearer>[, <target>][, <permission>])
     """
 
     def __init__(self):
 
         # key format: (bearer, target)
-        self.target = InheritableDict(0, 1)
+        self.target = CachedDict(0, 1)
 
         # key format: (bearer, permission)
-        self.bearer = InheritableDict(1)
+        self.bearer = CachedDict(0)
 
         super().__init__(0, 1)
 
@@ -54,38 +71,18 @@ class CachedRegistry(InheritableDict):
         self.target.clear()
         self.bearer.clear()
 
-    def _maybe_cache(self, key, value):
-        # Specific rules can be flagged as not cached.
-        if value.cache:
-            self[key] = value
-
-    def __missing__(self, key):
-        # Assert the type of permission being checked and ferry it off
-        # elsewhere.
-        # This class only accepts explict permissions on an explicit target.
-        if len(key) != 3:
-            value = self._dispatch(key)
-        else:
-            value = super().__missing__(key)
-
-        self._maybe_cache(key, value)
-        return value
-
     def _lookup(self, bearer, target=None, permission=None):
         """Lookup the proper registry for this permission.
         Returns (<registry>, <key>) where registry is the proper lookup
         and key is the generated key to use for the permission."""
 
-        if target is None and permission is None:
-            raise TypeError('Must specify either target or permission.')
-
         if target is None:
             key = (bearer, permission)
-            lookup = self.target
+            lookup = self.bearer
 
         elif permission is None:
             key = (bearer, target)
-            lookup = self.bearer
+            lookup = self.target
 
         else:
             key = (bearer, target, permission)
@@ -116,4 +113,6 @@ class CachedRegistry(InheritableDict):
         reg, key = self._lookup(rule.bearer, rule.target, rule.permission)
         reg[key] = rule
 
-registry = CachedRegistry()
+
+# Create the global registry we'll use for all shield permissions.
+registry = Registry()

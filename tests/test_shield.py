@@ -70,152 +70,171 @@ class FixtureTest(BaseTest):
 
 class TestRegistry(RuleTest, FixtureTest):
 
-    def test_register_normal_rule(self):
+    def rule(self, **kwargs):
+        return 'invoked'
 
-        @shield.rule('member', bearer=models.User, target=models.Team)
-        def rule(query, bearer):
-            pass
+    def register_specific_rule(self):
+        rule = shield.rule('member', bearer=models.User, target=models.Team)
+        rule(self.rule)
+
+    def register_target_rule(self):
+        shield.rule(bearer=models.User, target=models.Team)(self.rule)
+
+    def register_bearer_rule(self):
+        shield.rule('member', bearer=models.User)(self.rule)
+
+    def test_register_normal_rule(self):
+        self.register_specific_rule()
 
         assert len(shield.registry) == 1
 
-# class TestSimplePredicate(BaseTest):
+    def test_register_target_rule(self):
 
-#     def setup(self):
-#         super(TestSimplePredicate, self).setup()
+        self.register_target_rule()
 
-#         # Add 49 users.
-#         for n in range(49):
-#             self.session.add(models.User(name=str(n)))
-#             self.session.commit()
+        assert len(shield.registry) == 0
+        assert len(shield.registry.target) == 1
 
-#     def test_evaluate_attribute(self):
-#         bearer = models.User(id=7)
-#         q = P(bearer, 'id')
+    def test_register_bearer_rule(self):
+        self.register_bearer_rule()
 
-#         assert evaluate(q) == bearer.id
+        assert len(shield.registry) == 0
+        assert len(shield.registry.bearer) == 1
 
-#     def test_evaluate_attribute_eq(self):
-#         bearer = models.User(id=7)
-#         q = P(bearer, 'id') == 7
-#         n = bearer.id == 7
+    def test_retrieve_existing_rules(self):
+        self.register_specific_rule()
+        self.register_target_rule()
+        self.register_bearer_rule()
 
-#         assert evaluate(q) == n
+        rules = []
 
-#     def test_evaluate_attribute_ne(self):
-#         bearer = models.User(id=7)
-#         q = P(bearer, 'id') != 7
-#         n = bearer.id != 7
+        # BEARER has PERMISSION on TARGET
+        rules.append(shield.registry.retrieve(
+            permission='member',
+            bearer=models.User,
+            target=models.Team))
 
-#         assert evaluate(q) == n
+        # BEARER has all permissions on TARGET
+        rules.append(shield.registry.retrieve(
+            bearer=models.User,
+            target=models.Team))
 
-#     def test_evaluate_target_attribute(self):
-#         bearer = models.User(id=7)
-#         q = P('id')
+        # BEARER has PERMISSION
+        rules.append(shield.registry.retrieve(
+            permission='member',
+            bearer=models.User))
 
-#         assert evaluate(q, bearer) == bearer.id
+        for rule in rules:
+            assert rule is not None
+            assert rule(None, None) == 'invoked'
 
-#     def test_evaluate_target_attribute_eq(self):
-#         bearer = models.User(id=7)
-#         q = P('id') == 7
-#         n = bearer.id == 7
+    def test_retrieve_nonexistant_rule(self):
+        self.register_specific_rule()
 
-#         assert evaluate(q, bearer) == n
+        # Generate argument calls for the registry retrieval
+        args = [
 
-#     def test_evaluate_target_attribute_ne(self):
-#         bearer = models.User(id=7)
-#         q = P('id') != 7
-#         n = bearer.id != 7
+            # BEARER has PERMISSION on TARGET
+            {
+                'permission': 'awesome',  # invalid.
+                'bearer': models.User,
+                'target': models.Team,
+            },
+            # BEARER has all permissions on TARGET
+            {
+                'bearer': models.Box,  # invalid.
+                'target': models.Team,
+            },
+            # BEARER has PERMISSION
+            {
+                'permission': 'awesome',  # invalid.
+                'bearer': models.User,
+            }
+        ]
 
-#         assert evaluate(q, bearer) == n
+        for argset in args:
+            with pytest.raises(KeyError):
+                shield.registry.retrieve(**argset)
+
+    def test_inherited_caching(self):
+        self.register_target_rule()
+
+        assert len(shield.registry.target) == 1
+
+        shield.registry.retrieve(
+            bearer=models.Superuser,
+            target=models.Team)
+
+        assert len(shield.registry.target) == 2
+
+    def test_no_caching(self):
+
+        shield.rule(
+            target=models.Team,
+            bearer=models.User,
+            cache=False)(self.rule)
+
+        assert len(shield.registry.target) == 1
+
+        shield.registry.retrieve(target=models.Team, bearer=models.User)
+
+        assert len(shield.registry.target) == 1
 
 
-# class TestFilterPredicate(BaseTest):
+class TestInterface(RuleTest, FixtureTest):
+    """Test common interfaces (shield.filter and shield.has)"""
 
-#     def setup(self):
-#         super(TestFilterPredicate, self).setup()
+    def register_membership(self):
+        @shield.rule('member', bearer=models.User, target=models.Team)
+        def user_is_member_of_team(query, bearer, **kwargs):
+            # return teams that this user is part of.  query is scoped to team
+            return query.join(models.Membership).filter(
+                models.Membership.user == bearer)
 
-#         # Add 6 users, 2 teams, and link the first 3 to 1 and the
-#         # second 3 to 2.
+    def register_deferred(self):
+        pass
 
-#         self.users = users = []
-#         for n in range(6):
-#             users.append(models.User(name=str(n)))
+    def test_filter(self):
+        self.register_membership()
 
-#         self.session.add_all(users)
-#         self.session.commit()
+        user = self.users[0]
 
-#         teams = []
-#         for n in range(2):
-#             teams.append(models.Team(name=str(n)))
+        team_ids = {x.id for x in user.teams}
 
-#         self.session.add_all(teams)
-#         self.session.commit()
+        query = shield.filter(
+            'member',
+            bearer=user,
+            target=models.Team,
+            session=self.session)
 
-#         links = []
-#         for n in range(3):
-#             links.append(models.Membership(team=teams[0], user=users[n],
-#                                            is_active=True))
+        assert {x.id for x in query} == team_ids
 
-#         for n in range(3):
-#             links.append(models.Membership(team=teams[1], user=users[n + 3],
-#                                            is_active=False))
+    def test_has(self):
+        self.register_membership()
 
-#         self.session.add_all(links)
-#         self.session.commit()
+        user = self.users[0]
 
-#         # Create 10 boxes (5 for each team).
-#         self.boxes = boxes = []
-#         for n in range(5):
-#             boxes.append(models.Box(team=teams[0]))
+        result = shield.has(
+            'member',
+            bearer=user,
+            target=user.teams.first(),
+            session=self.session)
 
-#         for n in range(5):
-#             boxes.append(models.Box(team=teams[1]))
+        assert result is True
 
-#         self.session.add_all(boxes)
-#         self.session.commit()
+    def test_deferred(self):
+        self.register_membership()
 
-#     def test_eval_filter(self):
-#         bearer1 = self.users[0]
-#         bearer2 = self.users[3]
+        shield.deferred_rule(
+            'member',
+            attributes=('team',),
+            bearer=models.User,
+            target=models.Box)
 
-#         # Every team in which there is an active membership with.
-#         q1 = P(bearer1, 'teams', Membership__is_active=True)
-#         q2 = P(bearer2, 'teams', Membership__is_active=True)
+        result = shield.filter(
+            'member',
+            bearer=self.users[0],
+            target=models.Box,
+            session=self.session)
 
-#         assert len(evaluate(q1).all()) == 1
-#         assert len(evaluate(q2).all()) == 0
-
-#     def test_box_check(self):
-#         bearer1 = self.users[0]
-#         bearer2 = self.users[3]
-
-#         # Every team in which there is an active membership with.
-#         x1 = P(bearer1, 'teams', Membership__is_active=True)
-#         x2 = P(bearer2, 'teams', Membership__is_active=True)
-
-#         # Every box that belongs to that team.
-#         q1 = P('team').in_(x1)
-#         q2 = P('team').in_(x2)
-
-#         assert evaluate(q1, self.boxes[0])
-#         assert evaluate(q1, self.boxes[3])
-#         assert not evaluate(q1, self.boxes[7])
-#         assert not evaluate(q2, self.boxes[6])
-#         assert not evaluate(q2, self.boxes[8])
-#         assert not evaluate(q2, self.boxes[7])
-
-#     def test_box_filter(self):
-#         bearer1 = self.users[0]
-#         bearer2 = self.users[3]
-
-#         # Every team in which there is an active membership with.
-#         x1 = P(bearer1, 'teams', Membership__is_active=True)
-#         x2 = P(bearer2, 'teams', Membership__is_active=True)
-
-#         # Every box that belongs to that team.
-#         q1 = P('team').in_(x1)
-#         q2 = P('team').in_(x2)
-
-#         E = lambda x: evaluate(x, models.Box)
-#         assert self.session.query(models.Box).filter(E(q1)).count() == 5
-#         assert self.session.query(models.Box).filter(E(q2)).count() == 0
+        assert result.count() == 5
