@@ -7,6 +7,11 @@ import six
 
 
 class RuleBase(object):
+    # __call__ invoked with the following
+    # query: sqlalchemy query object aspected to the target.
+    # target: target class defined with the rule.
+    # bearer: bearer instance of type defined with the rule
+    # permission: Permission being checked.
 
     def __init__(self, permission, bearer, target, cache=True):
         self.permission = permission
@@ -23,17 +28,14 @@ class Rule(RuleBase):
         self.function = kwargs.pop('function')
         super(Rule, self).__init__(*args, **kwargs)
 
-    def __call__(self, query, bearer):
-        args = {
-            'query': query,
-            'bearer': bearer,
-            'target': self.target,
-        }
-        return self.function(**args)
+    def __call__(self, **kwargs):
+        kwargs['target'] = self.target
+        return self.function(**kwargs)
 
 
 class DeferredRule(RuleBase):
-    """Deferred type registry rule."""
+    """Deferred type registry rule.  Specialized to defer specific permissions
+    to another attribute"""
 
     def __init__(self, *args, **kwargs):
         self.attributes = kwargs.pop('attributes')
@@ -47,18 +49,42 @@ class DeferredRule(RuleBase):
             self._attr_map = {x: cls_for(x) for x in self.attributes}
         return self._attr_map
 
-    def __call__(self, query, bearer):
+    def lookup(self, permission):
+        # This is a deferred rule for a specific rule type.  Therefore,
+        # we will ignore the permission argument passed, because we already
+        # have our won permissions we're listening to?
+
+        # If this deferred rule was defined with a permission, then we are in
+        # (bearer, target) mode else we're in (bearer, target, permission)
+        # mode.  In the former mode, we are checking any permission that
+        # we recieve period.  In the latter, we're checking with whatever
+        # permission we were given.
+
+        perm = permission if self.permission is None else self.permission
         rules = {}
         for name, class_ in six.iteritems(self.attr_map):
             rule = registry.retrieve(
                 bearer=self.bearer,
                 target=class_,
-                permission=self.permission)
+                permission=perm)
             rules[rule] = class_
+        return rules
+
+    def __call__(self, query, bearer, permission):
+        rules = self.lookup(permission)
+
+        params = {
+            # 'query': query,
+            'bearer': bearer,
+            'permission': permission,
+            'target': self.target
+        }
 
         # Invoke all the rules.
         def join_table(rule, class_):
-            return rule(query.join(class_), bearer)
+            kwargs = dict(params)
+            kwargs['query'] = query.join(class_)
+            return rule(**kwargs)
 
         results = (join_table(*x) for x in six.iteritems(rules))
         return reduce(operator.and_, results)
@@ -109,7 +135,7 @@ class rule(object):
 def deferred_rule(*permissions, **kwargs):
 
     # Create a bunch of deferred rules,
-    if permissions is None:
+    if not len(permissions):
         rules = [DeferredRule(permission=None, **kwargs)]
     else:
         rules = [DeferredRule(permission=x, **kwargs) for x in permissions]

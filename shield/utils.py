@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
 import operator
-from six.moves import map, reduce
+from six.moves import reduce
 from ._registry import registry
 from sqlalchemy.orm import object_session
 import functools
+import six
 
 
 def type_for(obj):
@@ -30,15 +31,27 @@ def filter_(*permissions, **kwargs):
         target=target)
 
     try:
+        # Generate a hash of {rule_fn: permission} that we can use later
+        # to collect all of the rules.
         if len(permissions):
-            fns = [getter(permission=x) for x in permissions]
+            fns = {getter(permission=x): x for x in permissions}
         else:
-            fns = [getter()]
+            fns = {getter(): None}
     except KeyError:
         # No rules defined.  Default to no permission.
         return False
 
-    return reduce(operator.and_, map(lambda x: x(query, bearer), fns))
+    params = {
+        'query': query,
+        'bearer': bearer,
+    }
+
+    # Invoke all the rules and collect the results
+    results = (x(permission=y, **params) for x, y in six.iteritems(fns))
+
+    # AND the results together and return the resulting query.
+    # what does it even mean to AND these together in sqlalchemy?
+    return reduce(operator.and_, results)
 
 
 def has(*permissions, **kwargs):

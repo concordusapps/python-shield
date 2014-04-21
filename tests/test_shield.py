@@ -126,7 +126,7 @@ class TestRegistry(RuleTest, FixtureTest):
 
         for rule in rules:
             assert rule is not None
-            assert rule(None, None) == 'invoked'
+            assert rule() == 'invoked'
 
     def test_retrieve_nonexistant_rule(self):
         self.register_specific_rule()
@@ -204,8 +204,7 @@ class TestInterface(RuleTest, FixtureTest):
         query = shield.filter(
             'member',
             bearer=user,
-            target=models.Team,
-            session=self.session)
+            target=models.Team)
 
         assert {x.id for x in query} == team_ids
 
@@ -217,8 +216,7 @@ class TestInterface(RuleTest, FixtureTest):
         result = shield.has(
             'member',
             bearer=user,
-            target=user.teams.first(),
-            session=self.session)
+            target=user.teams.first())
 
         assert result is True
 
@@ -234,7 +232,21 @@ class TestInterface(RuleTest, FixtureTest):
         result = shield.filter(
             'member',
             bearer=self.users[0],
-            target=models.Box,
-            session=self.session)
+            target=models.Box)
+
+        assert result.count() == 5
+
+    def test_deferred_target_style(self):
+        self.register_membership()
+
+        shield.deferred_rule(
+            attributes=('team',),
+            bearer=models.User,
+            target=models.Box)
+
+        result = shield.filter(
+            'member',
+            bearer=self.users[0],
+            target=models.Box)
 
         assert result.count() == 5

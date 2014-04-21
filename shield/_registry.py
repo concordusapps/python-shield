@@ -71,6 +71,19 @@ class Registry(CachedDict):
         self.target.clear()
         self.bearer.clear()
 
+    def __missing__(self, key):
+        try:
+            result = super(Registry, self).__missing__(key)
+        except KeyError:
+            # Try looking it up as a <bearer HAS ALL PERMISSIONS ON target>
+            # style permission
+            # Our key format is (bearer, target, permission)
+            # Target registry's permission is (bearer, target)
+            result = self.target[(key[0], key[1])]
+
+        self._maybe_cache(key, result)
+        return result
+
     def _lookup(self, bearer, target=None, permission=None):
         """Lookup the proper registry for this permission.
         Returns (<registry>, <key>) where registry is the proper lookup
