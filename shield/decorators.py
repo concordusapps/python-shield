@@ -44,9 +44,13 @@ class DeferredRule(RuleBase):
     @property
     def attr_map(self):
         # This is the cached attribute map.
+        # This returns a hash of {'attribute': (class_, sa_column)}
+        # The column is used during the join operation.
         if not hasattr(self, '_attr_map'):
             cls_for = lambda x: getattr(self.target, x).property.mapper.class_
-            self._attr_map = {x: cls_for(x) for x in self.attributes}
+            col_for = lambda x: getattr(self.target, x)
+            attrs = self.attributes
+            self._attr_map = {x: (cls_for(x), col_for(x)) for x in attrs}
         return self._attr_map
 
     def lookup(self, permission):
@@ -62,12 +66,12 @@ class DeferredRule(RuleBase):
 
         perm = permission if self.permission is None else self.permission
         rules = {}
-        for name, class_ in six.iteritems(self.attr_map):
+        for name, (class_, col) in six.iteritems(self.attr_map):
             rule = registry.retrieve(
                 bearer=self.bearer,
                 target=class_,
                 permission=perm)
-            rules[rule] = class_
+            rules[rule] = class_, col
         return rules
 
     def __call__(self, query, bearer, permission):
@@ -81,9 +85,10 @@ class DeferredRule(RuleBase):
         }
 
         # Invoke all the rules.
-        def join_table(rule, class_):
+        def join_table(rule, classes):
+            class_, col = classes
             kwargs = dict(params)
-            kwargs['query'] = query.join(class_)
+            kwargs['query'] = query.join(class_, col)
             return rule(**kwargs)
 
         results = (join_table(*x) for x in six.iteritems(rules))
