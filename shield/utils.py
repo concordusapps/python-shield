@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
-import operator
 from six.moves import reduce
 from ._registry import registry
 from sqlalchemy.orm import object_session
@@ -18,12 +17,19 @@ def filter_(*permissions, **kwargs):
     berarer or target.
     """
     bearer = kwargs['bearer']
-    session = kwargs.get('session', object_session(bearer))
     target = kwargs.get('target')
-
-    query = session.query(target)
-
     bearer_cls = type_for(bearer)
+
+    # We need a query object.  There are many ways to get one,  Either we can
+    # be passed one, or we can make one from the session.  We can either be
+    # passed the session, or we can grab the session from the bearer passed.
+
+    if 'query' in kwargs:
+        query = kwargs['query']
+    elif 'session' in kwargs:
+        query = kwargs['session'].query(target)
+    else:
+        query = object_session(bearer).query(target)
 
     getter = functools.partial(
         registry.retrieve,
@@ -31,27 +37,27 @@ def filter_(*permissions, **kwargs):
         target=target)
 
     try:
-        # Generate a hash of {rule_fn: permission} that we can use later
+        # Generate a hash of {rulefn: permission} that we can use later
         # to collect all of the rules.
         if len(permissions):
-            fns = {getter(permission=x): x for x in permissions}
+            rules = {getter(permission=x): x for x in permissions}
         else:
-            fns = {getter(): None}
+            rules = {getter(): None}
     except KeyError:
         # No rules defined.  Default to no permission.
         return False
 
-    params = {
-        'query': query,
-        'bearer': bearer,
-    }
-
     # Invoke all the rules and collect the results
-    results = (x(permission=y, **params) for x, y in six.iteritems(fns))
 
-    # AND the results together and return the resulting query.
-    # what does it even mean to AND these together in sqlalchemy?
-    return reduce(operator.and_, results)
+    # Abusing reduce here to invoke each rule and send the return value (query)
+    # from one rule to the next one.  In this way the query becomes
+    # increasingly decorated as it marches through the system.
+
+    # q == query
+    # r = (rulefn, permission)
+    reducer = lambda q, r: r[0](permission=r[1], query=q, bearer=bearer)
+
+    return reduce(reducer, six.iteritems(rules), query)
 
 
 def has(*permissions, **kwargs):

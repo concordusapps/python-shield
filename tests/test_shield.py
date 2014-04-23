@@ -162,8 +162,8 @@ class TestRegistry(RuleTest, FixtureTest):
         assert len(shield.registry.target) == 1
 
         shield.registry.retrieve(
-            bearer=models.Superuser,
-            target=models.Team)
+            bearer=models.User,
+            target=models.DerivedTeam)
 
         assert len(shield.registry.target) == 2
 

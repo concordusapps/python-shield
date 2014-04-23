@@ -6,32 +6,53 @@ import six
 class InheritableDict(dict):
     """A dictionary that tests inheritance of keys when one cannot be found.
     Expects an iterable key format (like a tuple).  The constructor takes
-    indexes for the keys that need inheritance checked.
+    a single index into the keys that need inheritance checked.
     """
-    def __init__(self, *positions):
-        self.__positions = set(positions)
+    def __init__(self, position):
+        self.__position = position
 
     def __missing__(self, key):
         # key = (<class1>, <class2>, <class3>)
-        for bkey in six.iterkeys(self):
-            # bkey = (<cls1>, <cls2>, <clss3>)
-            for index, item in enumerate(bkey):
-                # index = 0, item = <cls1>
-                if index in self.__positions:
-                    # issubclass(<class1>, <cls1>)
-                    if not issubclass(key[index], item):
-                        break
 
+        derived = key[self.__position]
+        results = []
+
+        for bkey in six.iterkeys(self):
+            # bkey = (<base1>, <base2>, <base3>)
+            for index, item in enumerate(bkey):
+                # index = 0, item = <base1>
+                if index == self.__position:
+                    # issubclass(<class1>, <base1>)
+                    if not issubclass(derived, item):
+                        break
                 else:
-                    # <class1> == <cls1>
+                    # <class1> == <base1>
                     if key[index] != item:
                         break
             else:
-                # issubclass and == passed.
-                return self[bkey]
+                # issubclass and == passed
+                results.append(bkey)
         else:
-            # issubclass and == did not pass for any entries.
-            raise KeyError(key)
+            if len(results):
+                # We found results.  Evaluate the MRO for these entries and
+                # chose the one the farthest down the MRO chain (the most
+                # derived superclass.)
+
+                # We can accomplish this by checking the index of the
+                # superclasses in the mro chain of the keyed class.
+                mro = derived.mro()
+
+                getter = lambda x: mro.index(x[self.__position])
+                indexes = {getter(x): x for x in results}
+
+                # MRO is ordered most derived first.  So sort the keys and
+                # use the lowest keys to find the final result
+                result_key = sorted(six.iterkeys(indexes))[0]
+                return self[indexes[result_key]]
+
+            else:
+                # issubclass and == did not pass for any entries.
+                raise KeyError(key)
 
 
 class CachedDict(InheritableDict):
@@ -59,12 +80,14 @@ class Registry(CachedDict):
     def __init__(self):
 
         # key format: (bearer, target)
-        self.target = CachedDict(0, 1)
+        self.target = CachedDict(1)
 
         # key format: (bearer, permission)
-        self.bearer = CachedDict(0)
+        # No inheritance shenannigans apply to the bearer registry, so we
+        # don't need to cache the results either.
+        self.bearer = dict()
 
-        super(Registry, self).__init__(0, 1)
+        super(Registry, self).__init__(1)
 
     def clear(self):
         super(Registry, self).clear()
@@ -80,8 +103,8 @@ class Registry(CachedDict):
             # Our key format is (bearer, target, permission)
             # Target registry's permission is (bearer, target)
             result = self.target[(key[0], key[1])]
+            self._maybe_cache(key, result)
 
-        self._maybe_cache(key, result)
         return result
 
     def _lookup(self, bearer, target=None, permission=None):
