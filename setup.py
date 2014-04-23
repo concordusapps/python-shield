@@ -36,9 +36,6 @@ setup(
             # Ensure test coverage.
             'pytest-cov',
 
-            # The Web framework for perfectionists with deadlines.
-            'django',
-
             # SQLAlchemy is the Python SQL toolkit and Object Relational Mapper
             # that gives application developers the full power and flexibility
             # of SQL.

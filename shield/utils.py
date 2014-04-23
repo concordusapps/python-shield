@@ -1,40 +1,64 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals, division
-import operator
-from six.moves import map, reduce
-from ._registry import registry, target_registry, bearer_registry, expression
+from six.moves import reduce
+from ._registry import registry
+from sqlalchemy.orm import object_session
+from sqlalchemy import sql
+import functools
+import six
 
 
-def register(function, *permissions, **kwargs):
-    """Registers the passed function with the passed permissions.
+def type_for(obj):
+    return obj if isinstance(obj, type) else obj.__class__
 
-    @param[in] function
-        The function the register.
 
-    @param[in] permissions
-        The permissions to register for the bearer.
-
-    @param[in] bearer
-        The entity that is being granted the permissions.
-
-    @param[in] target
-        The entity that the bearer is being granted the
-        permissions for (optional).
+def filter_(*permissions, **kwargs):
     """
+    Constructs a clause to filter all bearers or targets for a given
+    berarer or target.
+    """
+    bearer = kwargs['bearer']
+    target = kwargs.get('target')
+    bearer_cls = type_for(bearer)
 
-    # Generic USER HAS ALL PERMISSIONS ON TARGET type permision
-    if not len(permissions):
-        target_registry[kwargs['bearer'], kwargs['target']] = function
+    # We need a query object.  There are many ways to get one,  Either we can
+    # be passed one, or we can make one from the session.  We can either be
+    # passed the session, or we can grab the session from the bearer passed.
 
-    # Generic USER CAN X permission.
-    elif not 'target' in kwargs:
-        for perm in permissions:
-            bearer_registry[kwargs['bearer'], perm] = function
-
-    # Specific USER CAN X ON TARGET permission.
+    if 'query' in kwargs:
+        query = kwargs['query']
+    elif 'session' in kwargs:
+        query = kwargs['session'].query(target)
     else:
-        for perm in permissions:
-            registry[kwargs['bearer'], kwargs['target'], perm] = function
+        query = object_session(bearer).query(target)
+
+    getter = functools.partial(
+        registry.retrieve,
+        bearer=bearer_cls,
+        target=target)
+
+    try:
+        # Generate a hash of {rulefn: permission} that we can use later
+        # to collect all of the rules.
+        if len(permissions):
+            rules = {getter(permission=x): x for x in permissions}
+        else:
+            rules = {getter(): None}
+    except KeyError:
+        # No rules defined.  Default to no permission.
+        return query.filter(sql.false())
+
+    # Invoke all the rules and collect the results
+
+    # Abusing reduce here to invoke each rule and send the return value (query)
+    # from one rule to the next one.  In this way the query becomes
+    # increasingly decorated as it marches through the system.
+
+    # q == query
+    # r = (rulefn, permission)
+    reducer = lambda q, r: r[0](permission=r[1], query=q, bearer=bearer)
+
+    return reduce(reducer, six.iteritems(rules), query)
 
 
 def has(*permissions, **kwargs):
@@ -42,45 +66,10 @@ def has(*permissions, **kwargs):
     Checks if the passed bearer has the passed permissions (optionally on
     the passed target).
     """
-    target, bearer = kwargs.get('target'), kwargs['bearer']
-    bearer_cls = bearer.__class__
 
-    if target is None:
-        check = lambda p: registry[bearer_cls, None, p](target, bearer)
+    target = kwargs['target']
 
-    else:
-        target_cls = target.__class__
-        check = lambda p: registry[bearer_cls, target_cls, p](target, bearer)
+    kwargs['target'] = type_for(target)
 
-    try:
-        # Attempt to check rules.
-        return reduce(operator.and_, map(check, permissions))
-
-    except KeyError:
-        # Rule not defined; return False.
-        return False
-
-
-def filter(*permissions, **kwargs):
-    """
-    Constructs a clause to filter all bearers or targets for a given
-    berarer or target.
-    """
-    target, bearer = kwargs.get('target'), kwargs['bearer']
-    bearer_cls = bearer.__class__ if not isinstance(bearer, type) else bearer
-
-    if target is None:
-        check = lambda p: expression[bearer_cls, None, p](target, bearer_cls)
-
-    else:
-        target_cls = target if isinstance(target, type) else target.__class__
-        check = lambda x: expression[bearer_cls, target_cls, x](
-            target, bearer)
-
-    try:
-        # Attempt to build clause.
-        return reduce(operator.and_, map(check, permissions))
-
-    except KeyError:
-        # Rule not defined; return False.
-        return False
+    # TODO: Predicate evaluation?
+    return target in filter_(*permissions, **kwargs)

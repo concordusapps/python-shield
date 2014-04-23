@@ -31,6 +31,26 @@ class Team(Base):
 
     name = sa.Column(sa.Unicode(250), default='', nullable=False)
 
+    type = sa.Column(sa.Unicode(256), nullable=False)
+
+    __mapper_args__ = {
+        "polymorphic_on": type,
+        "polymorphic_identity": "team",
+    }
+
+
+class DerivedTeam(Team):
+
+    __tablename__ = 'superuser'
+
+    id = sa.Column(sa.ForeignKey(Team.id), primary_key=True)
+
+    super_status = sa.Column(sa.Boolean, default=True, nullable=False)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'derived_team'
+    }
+
 
 class Membership(Base):
 
