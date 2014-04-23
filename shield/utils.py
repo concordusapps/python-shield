@@ -3,6 +3,7 @@ from __future__ import absolute_import, unicode_literals, division
 from six.moves import reduce
 from ._registry import registry
 from sqlalchemy.orm import object_session
+from sqlalchemy import sql
 import functools
 import six
 
@@ -45,7 +46,7 @@ def filter_(*permissions, **kwargs):
             rules = {getter(): None}
     except KeyError:
         # No rules defined.  Default to no permission.
-        return False
+        return query.filter(sql.false())
 
     # Invoke all the rules and collect the results
 
