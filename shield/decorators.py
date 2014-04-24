@@ -2,6 +2,7 @@
 from __future__ import absolute_import, unicode_literals, division
 from ._registry import registry
 from six.moves import reduce
+import sqlalchemy as sa
 import operator
 import six
 
@@ -78,17 +79,23 @@ class DeferredRule(RuleBase):
         rules = self.lookup(permission)
 
         params = {
-            # 'query': query,
             'bearer': bearer,
             'permission': permission,
-            'target': self.target
+            'target': self.target,
         }
 
         # Invoke all the rules.
         def join_table(rule, classes):
+            # When we create this join table, we need to specify the column
+            # and create a class alias for the joinee.  This is to
+            # support adjacency lists.
             class_, col = classes
+
+            alias = sa.orm.aliased(class_)
             kwargs = dict(params)
-            kwargs['query'] = query.join(class_, col)
+
+            kwargs['query'] = query.join(alias, col)
+
             return rule(**kwargs)
 
         results = (join_table(*x) for x in six.iteritems(rules))
