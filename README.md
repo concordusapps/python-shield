@@ -1,8 +1,8 @@
 # shield
 [![Build Status](https://travis-ci.org/concordusapps/python-shield.png?branch=master)](https://travis-ci.org/concordusapps/python-shield)
 [![Coverage Status](https://coveralls.io/repos/concordusapps/python-shield/badge.png?branch=master)](https://coveralls.io/r/concordusapps/python-shield?branch=master)
-[![PyPi Version](https://pypip.in/v/shield/badge.png)](https://pypi.python.org/pypi/scim)
-![PyPi Downloads](https://pypip.in/d/shield/badge.png)
+[![PyPi Version](https://pypip.in/v/shield/badge.png)](https://pypi.python.org/pypi/shield)
+[![PyPi Downloads](https://pypip.in/d/shield/badge.png)](https://pypi.python.org/pypi/shield)
 > A permissions framework built around declarative rules that is ORM-agnostic.
 
 **Shield** faciltiates the creation of functional rules that define permissions on a *bearer* object optionally in relation to a *target* object. **Shield** is currently designed to work exclusively with sqlalchemy.
