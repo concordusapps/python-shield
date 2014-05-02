@@ -34,6 +34,9 @@ class Rule(RuleBase):
         return self.function(**kwargs)
 
 
+# TODO: The recursive nature of this DeferredRule is getting a bit gnarly when
+# trying to manage sqlalchemy query join scopes.  Some re-thinking might be in
+# order.
 class DeferredRule(RuleBase):
     """Deferred type registry rule.  Specialized to defer specific permissions
     to another attribute"""
@@ -75,17 +78,15 @@ class DeferredRule(RuleBase):
             rules[rule] = class_, col
         return rules
 
-    def __call__(self, query, bearer, permission):
+    def __call__(self, query, permission, **kwargs):
         rules = self.lookup(permission)
 
-        params = {
-            'bearer': bearer,
-            'permission': permission,
-            'target': self.target,
-        }
+        params = dict(kwargs)
+        params['permission'] = permission
+        params['target'] = self.target
 
         # Invoke all the rules.
-        def join_table(rule, classes):
+        def join_table(q, rule, classes):
             # When we create this join table, we need to specify the column
             # and create a class alias for the joinee.  This is to
             # support adjacency lists.
@@ -94,12 +95,14 @@ class DeferredRule(RuleBase):
             alias = sa.orm.aliased(class_)
             kwargs = dict(params)
 
-            kwargs['query'] = query.join(alias, col)
+            kwargs['query'] = q.join(alias, col)
 
             return rule(**kwargs)
 
-        results = (join_table(*x) for x in six.iteritems(rules))
-        return reduce(operator.and_, results)
+        return reduce(
+            lambda x, y: join_table(x, *y),
+            six.iteritems(rules),
+            query)
 
 
 class rule(object):
