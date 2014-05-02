@@ -30,7 +30,7 @@ class Rule(RuleBase):
         super(Rule, self).__init__(*args, **kwargs)
 
     def __call__(self, **kwargs):
-        kwargs['target'] = self.target
+        kwargs.setdefault('target', self.target)
         return self.function(**kwargs)
 
 
@@ -96,6 +96,7 @@ class DeferredRule(RuleBase):
             kwargs = dict(params)
 
             kwargs['query'] = q.join(alias, col)
+            kwargs['target'] = alias
 
             return rule(**kwargs)
 
